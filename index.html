@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>IntelGrader Poster Studio</title>
+    <style>
+      :root { --ink:#142650; --blue:#1d75f7; --line:#dce7fb; --paper:#f5f9ff; }
+      * { box-sizing:border-box; }
+      body { margin:0; font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color:var(--ink); background:linear-gradient(135deg,#edf5ff,#fff 58%,#eef7ff); }
+      main { max-width:1120px; min-height:100vh; padding:48px 24px; margin:auto; display:grid; grid-template-columns:380px 1fr; align-items:center; gap:72px; }
+      h1 { margin:0 0 12px; font-size:38px; letter-spacing:-1.5px; line-height:1.05; }
+      p { margin:0; color:#526381; font-size:16px; line-height:1.6; }
+      .panel { background:rgba(255,255,255,.86); padding:34px; border:1px solid rgba(154,184,234,.45); border-radius:24px; box-shadow:0 20px 60px rgba(44,89,160,.12); }
+      .logo { width:208px; margin-bottom:30px; display:block; }
+      label { display:block; margin:30px 0 9px; font-size:13px; font-weight:750; letter-spacing:.06em; text-transform:uppercase; color:#344b78; }
+      input, select { width:100%; padding:14px 15px; border:1px solid #bed1f3; border-radius:12px; background:#fff; color:var(--ink); font:inherit; outline:none; }
+      input:focus, select:focus { border-color:var(--blue); box-shadow:0 0 0 4px rgba(29,117,247,.12); }
+      button { width:100%; margin-top:22px; padding:15px 18px; border:0; border-radius:12px; color:white; background:linear-gradient(135deg,#1769e9,#2b88fa); font:700 16px/1.2 inherit; cursor:pointer; box-shadow:0 10px 22px rgba(31,116,235,.25); }
+      button:hover { filter:brightness(1.04); transform:translateY(-1px); }
+      .hint { margin-top:16px; font-size:13px; }
+      .preview-wrap { display:flex; justify-content:center; }
+      canvas { display:block; width:min(100%, 506px); height:auto; background:white; border-radius:9px; box-shadow:0 28px 70px rgba(27,66,127,.24); }
+      @media (max-width:820px) { main { grid-template-columns:1fr; gap:36px; padding:28px 18px 44px; } .panel { padding:26px; } h1 { font-size:34px; } .preview-wrap { order:-1; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="panel">
+        <img class="logo" src="assets/official-intelgrader-wordmark.png" alt="IntelGrader" />
+        <h1>Poster Studio</h1>
+        <p>Create a ready-to-share welcome poster in seconds. Add a name, preview it, then download the PNG for WhatsApp.</p>
+        <label for="template">Template</label>
+        <select id="template" aria-label="Poster template"></select>
+        <label for="institute">Institute name</label>
+        <input id="institute" maxlength="42" value="Kantak Tutorial" placeholder="e.g. Bright Future Academy" />
+        <button id="download" type="button">Download poster</button>
+        <p class="hint">More templates can be added by dropping a new base poster into the <code>assets</code> folder and adding one entry to the template list.</p>
+      </section>
+      <section class="preview-wrap" aria-label="Poster preview"><canvas id="poster"></canvas></section>
+    </main>
+    <script>
+      const templates = [
+        { id: 'welcome', label: 'Welcome — Blue', image: 'assets/welcome-kantak-base.png', filename: 'intelgrader-welcome', field: { x: 318, y: 1207, w: 492, h: 88, iconX: 362, iconY: 1228, dividerX: 428, textX: 618, textMax: 338 } },
+        { id: 'pilot', label: 'Pilot Program — Blue', image: 'assets/pilot-program-base.png', filename: 'intelgrader-pilot-program', field: { x: 286, y: 1207, w: 577, h: 88, iconX: 330, iconY: 1228, dividerX: 399, textX: 636, textMax: 415 } },
+        { id: 'teachers-day', label: 'Teachers’ Day — Appreciation', image: 'assets/teachers-day-base.png', filename: 'intelgrader-teachers-day', field: { x: 283, y: 1160, w: 570, h: 116, iconX: 317, iconY: 1194, dividerX: 411, textX: 638, textMax: 392 } }
+      ];
+      const canvas = document.querySelector('#poster');
+      const ctx = canvas.getContext('2d');
+      const select = document.querySelector('#template');
+      const institute = document.querySelector('#institute');
+      const img = new Image();
+      let activeTemplate = templates[0];
+      templates.forEach(t => select.add(new Option(t.label, t.id)));
+
+      function roundedRect(x, y, width, height, radius) {
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y); ctx.arcTo(x + width, y, x + width, y + height, radius);
+        ctx.arcTo(x + width, y + height, x, y + height, radius); ctx.arcTo(x, y + height, x, y, radius);
+        ctx.arcTo(x, y, x + width, y, radius); ctx.closePath();
+      }
+      function fitText(text, maxWidth) {
+        let size = 25; ctx.font = `700 ${size}px Inter, Arial, sans-serif`;
+        while (ctx.measureText(text).width > maxWidth && size > 12) { size--; ctx.font = `700 ${size}px Inter, Arial, sans-serif`; }
+        return size;
+      }
+      function drawBuilding(x, y) {
+        ctx.save(); ctx.strokeStyle = '#176df1'; ctx.lineWidth = 2; ctx.lineJoin = 'round';
+        ctx.strokeRect(x + 3, y + 10, 26, 18); ctx.strokeRect(x + 10, y + 3, 10, 25);
+        for (const dx of [7, 15, 23]) for (const dy of [14, 21]) ctx.strokeRect(x + dx, y + dy, 2, 2);
+        ctx.beginPath(); ctx.moveTo(x, y + 29); ctx.lineTo(x + 32, y + 29); ctx.stroke(); ctx.restore();
+      }
+      function render() {
+        if (!img.complete || !img.naturalWidth) return;
+        canvas.width = img.naturalWidth; canvas.height = img.naturalHeight;
+        ctx.drawImage(img, 0, 0);
+        const scale = canvas.width / 1122;
+        const f = activeTemplate.field;
+        const x = f.x * scale, y = f.y * scale, w = f.w * scale, h = f.h * scale;
+        ctx.fillStyle = '#fff'; roundedRect(x + 2, y + 2, w - 4, h - 4, 42 * scale); ctx.fill();
+        ctx.strokeStyle = '#176df1'; ctx.lineWidth = 2 * scale; roundedRect(x, y, w, h, 42 * scale); ctx.stroke();
+        const dividerX = f.dividerX * scale;
+        ctx.strokeStyle = '#a9c8ff'; ctx.lineWidth = 1.5 * scale; ctx.beginPath(); ctx.moveTo(dividerX, (y + 20 * scale)); ctx.lineTo(dividerX, (y + h - 20 * scale)); ctx.stroke();
+        drawBuilding(f.iconX * scale, f.iconY * scale);
+        const name = (institute.value.trim() || 'YOUR INSTITUTE NAME').toUpperCase();
+        const fontSize = fitText(name, f.textMax * scale); ctx.font = `700 ${fontSize}px Inter, Arial, sans-serif`; ctx.fillStyle = '#176df1'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(name, f.textX * scale, (y + h / 2) + 1 * scale);
+      }
+      function loadTemplate() { activeTemplate = templates.find(t => t.id === select.value) || templates[0]; img.src = activeTemplate.image; }
+      select.addEventListener('change', loadTemplate); institute.addEventListener('input', render); img.addEventListener('load', render); loadTemplate();
+      document.querySelector('#download').addEventListener('click', () => {
+        render(); const safe = (institute.value.trim() || 'institute').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        const link = document.createElement('a'); link.download = `${activeTemplate.filename}-${safe}.png`; link.href = canvas.toDataURL('image/png'); link.click();
+      });
+    </script>
+  </body>
+</html>
